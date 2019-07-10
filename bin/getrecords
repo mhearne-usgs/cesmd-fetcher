@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+
+# stdlib imports
+import argparse
+import sys
+
+# local imports
+from cesmd.search import get_records
+
+
+def get_parser():
+    desc = '''Retrieve data records from CESMD.
+    '''
+
+    parser = argparse.ArgumentParser(
+        description=desc, formatter_class=argparse.RawDescriptionHelpFormatter)
+    # positional arguments
+    parser.add_argument('email',
+                        help='Your email address')
+    parser.add_argument('directory',
+                        help='Directory where output data should be written')
+
+    parser.add_argument('-u', '--unpack', action='store_true', default=False,
+                        help='Unzip all data and flatten directories.')
+    parser.add_argument('-i', '--eventid',
+                        help='Specify ComCat event ID.')
+    parser.add_argument('-d', '--distance', nargs=2,
+                        help='Set epicentral distance window (km)')
+
+    return parser
+
+
+def main():
+    parser = get_parser()
+    args = parser.parse_args()
+    toutdir = args.directory
+    email = args.email
+    if not args.eventid:
+        print('Only event ID searches are currently supported, so you must set one.')
+        sys.exit(1)
+    eventid = args.eventid
+    do_unpacking = args.unpack
+    mindist = None
+    maxdist = None
+    if args.distance:
+        mindist, maxdist = args.distance
+    try:
+        outdir, dfiles = get_records(toutdir, email,
+                                     eventid=eventid, unpack=do_unpacking,
+                                     min_station_dist=mindist,
+                                     max_station_dist=maxdist,
+                                     station_type='G')
+    except Exception as e:
+        print('Your request failed: "%s". Exiting.' % (str(e)))
+        sys.exit(1)
+    print('%i data files were retrieved to %s.' % (len(dfiles), outdir))
+
+
+if __name__ == '__main__':
+    main()
