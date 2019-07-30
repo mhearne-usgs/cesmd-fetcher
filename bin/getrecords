@@ -3,9 +3,15 @@
 # stdlib imports
 import argparse
 import sys
+from datetime import datetime, timedelta
 
 # local imports
 from cesmd.search import get_records
+
+TIMEFMT = '%Y-%m-%dT%H:%M:%S'
+DMAG = 0.2
+DTIME = 120  # seconds search window
+RADIUS = 25  # km search radius
 
 
 def get_parser():
@@ -26,6 +32,14 @@ def get_parser():
                         help='Specify ComCat event ID.')
     parser.add_argument('-d', '--distance', nargs=2,
                         help='Set epicentral distance window (km)')
+    ehelpstr = '''Specify event information by supplying:
+    - event time (YYYY-MM-DDTHH:MM:SS format)
+    - event latitude (decimal degrees)
+    - event longitude (decimal degrees)
+    - event magnitude
+    '''
+    parser.add_argument('-e', '--eventinfo', nargs=4, help=ehelpstr,
+                        metavar=('TIME', 'LAT', 'LON', 'MAG'))
 
     return parser
 
@@ -35,21 +49,45 @@ def main():
     args = parser.parse_args()
     toutdir = args.directory
     email = args.email
-    if not args.eventid:
-        print('Only event ID searches are currently supported, so you must set one.')
+    if not args.eventid and not args.eventinfo:
+        print('You must select either an event ID search, or event info search.')
         sys.exit(1)
-    eventid = args.eventid
+
     do_unpacking = args.unpack
     mindist = None
     maxdist = None
+
     if args.distance:
         mindist, maxdist = args.distance
+
     try:
-        outdir, dfiles = get_records(toutdir, email,
-                                     eventid=eventid, unpack=do_unpacking,
-                                     min_station_dist=mindist,
-                                     max_station_dist=maxdist,
-                                     station_type='G')
+        if args.eventid is not None:
+            eventid = args.eventid
+
+            outdir, dfiles = get_records(toutdir, email,
+                                         eventid=eventid, unpack=do_unpacking,
+                                         min_station_dist=mindist,
+                                         max_station_dist=maxdist,
+                                         station_type='G')
+        else:
+            eqtime = datetime.strptime(args.eventinfo[0], TIMEFMT)
+            stime = eqtime - timedelta(seconds=DTIME)
+            etime = eqtime + timedelta(seconds=DTIME)
+            elat = float(args.eventinfo[1])
+            elon = float(args.eventinfo[2])
+            emag = float(args.eventinfo[3])
+            outdir, dfiles = get_records(toutdir, email,
+                                         unpack=do_unpacking,
+                                         min_station_dist=mindist,
+                                         max_station_dist=maxdist,
+                                         event_latitude=elat,
+                                         event_longitude=elon,
+                                         event_radius=RADIUS,
+                                         minmag=emag - DMAG,
+                                         maxmag=emag + DMAG,
+                                         startdate=stime,
+                                         enddate=etime,
+                                         station_type='G')
     except Exception as e:
         print('Your request failed: "%s". Exiting.' % (str(e)))
         sys.exit(1)

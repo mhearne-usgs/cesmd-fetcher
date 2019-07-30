@@ -76,7 +76,7 @@ KEY_TABLE = {'return_type': 'rettype',
              'station_type': 'sttype',
              'include_inactive': 'abandoned',
              'station_name': 'stname',
-             'min__station_latitude': 'minlat',
+             'min_station_latitude': 'minlat',
              'max_station_latitude': 'maxlat',
              'min_station_longitude': 'minlon',
              'max_station_longitude': 'maxlon',
@@ -120,10 +120,10 @@ def get_records(output,
                 station_code=None,
                 event_name=None,
                 minmag=None,
-                maxmax=None,
+                maxmag=None,
                 fault_type=None,
-                start_date=None,
-                end_date=None,
+                startdate=None,
+                enddate=None,
                 min_event_latitude=None,
                 max_event_latitude=None,
                 min_event_longitude=None,
@@ -159,7 +159,7 @@ def get_records(output,
         station_code=None,
         event_name=None,
         minmag=None,
-        maxmax=None,
+        maxmag=None,
         fault_type=None,
         start_date=None,
         end_date=None,
@@ -237,6 +237,18 @@ def get_records(output,
         else:
             params[key] = value
 
+    # convert all booleans to strings that are 'true' and 'false'
+    for key, value in params.items():
+        if isinstance(value, bool):
+            if value:
+                params[key] = 'true'
+            else:
+                params[key] = 'false'
+
+    # add in a couple of parameters that seem to be required
+    params['orderby'] = 'epidist-asc'
+    params['nodata'] = '404'
+
     session = Session()
     request = Request('GET', URL_TEMPLATE, params=params).prepare()
     url = request.url
@@ -257,7 +269,7 @@ def get_records(output,
             if finfo.is_dir():
                 continue
             print(member)
-            if not member.endswith('.zip'):
+            if not member.lower().endswith('.zip'):
                 fin = myzip.open(member)
                 flatfile = member.replace('/', '_')
                 outfile = os.path.join(output, flatfile)
