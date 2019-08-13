@@ -3,6 +3,7 @@ import zipfile
 import io
 import os.path
 import pathlib
+import struct
 
 # third party imports
 from requests import Session, Request
@@ -268,7 +269,6 @@ def get_records(output,
             finfo = myzip.getinfo(member)
             if finfo.is_dir():
                 continue
-            print(member)
             if not member.lower().endswith('.zip'):
                 fin = myzip.open(member)
                 flatfile = member.replace('/', '_')
@@ -277,33 +277,34 @@ def get_records(output,
                     fout.write(fin.read())
                 fin.close()
             else:
-                tmpfile = myzip.open(member)
-                tmpzip = zipfile.ZipFile(tmpfile, mode='r')
-                tmp_members = tmpzip.namelist()
-                for tmp_member in tmp_members:
-                    if tmp_member.endswith('.zip'):
-                        x = 1
-                    tfinfo = tmpzip.getinfo(tmp_member)
-                    if not tfinfo.is_dir():
-                        print(tmp_member)
-                        fin = tmpzip.open(tmp_member)
-                        flatfile = tmp_member.replace('/', '_')
-                        parent, _ = os.path.splitext(member)
-                        parent = parent.replace('/', '_')
-                        # sometimes the member ends with .zip.zip (??)
-                        parent = parent.replace('.zip', '')
-                        datadir = os.path.join(output, parent)
-                        if not os.path.exists(datadir):
-                            os.makedirs(datadir)
-                        outfile = os.path.join(datadir, flatfile)
-                        if 'zip' in outfile:
-                            x = 1
-                        with open(outfile, 'wb') as fout:
-                            fout.write(fin.read())
-                        fin.close()
+                zfiledata = io.BytesIO(myzip.read(member))
+                try:
+                    tmpzip = zipfile.ZipFile(zfiledata, mode='r')
+                    tmp_members = tmpzip.namelist()
+                    for tmp_member in tmp_members:
+                        tfinfo = tmpzip.getinfo(tmp_member)
+                        if not tfinfo.is_dir():
+                            fin = tmpzip.open(tmp_member)
+                            flatfile = tmp_member.replace('/', '_')
+                            parent, _ = os.path.splitext(member)
+                            parent = parent.replace('/', '_')
+                            # sometimes the member ends with .zip.zip (??)
+                            parent = parent.replace('.zip', '')
+                            datadir = os.path.join(output, parent)
+                            if not os.path.exists(datadir):
+                                os.makedirs(datadir)
+                            outfile = os.path.join(datadir, flatfile)
+                            with open(outfile, 'wb') as fout:
+                                fout.write(fin.read())
+                            fin.close()
+                    tmpzip.close()
+                    zfiledata.close()
+                except Exception as e:
+                    fmt = ('Could not unpack sub-zip file "%s" due to error "%s". '
+                           'Skipping.')
+                    print(fmt % (member, str(e)))
+                    continue
 
-                tmpzip.close()
-                tmpfile.close()
         myzip.close()
 
         datafiles = []
